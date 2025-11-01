@@ -31,9 +31,18 @@ export class CsvImportService {
         .pipe(csv())
         .on('data', (data: CsvRow) => results.push(data))
         .on('end', () => {
-          this.processResults(results, errors, imported).then((result) => {
-            resolve(result);
-          });
+          this.processResults(results, errors, imported)
+            .then((result) => {
+              resolve(result);
+            })
+            .catch((error: unknown) => {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              resolve({
+                imported: 0,
+                errors: [errorMessage],
+              });
+            });
         });
     });
   }
@@ -43,11 +52,13 @@ export class CsvImportService {
     errors: string[],
     imported: number,
   ): Promise<{ imported: number; errors: string[] }> {
+    let importCount = imported; // Lokale Variable für Zählung
+
     for (const row of results) {
       try {
         const firstName = (row['First Name'] || '').toString();
         const lastName = (row['Last Name'] || '').toString();
-        const birthdayString = row['Birthday']?.toString() || '';
+        const birthdayString = (row['Birthday']?.toString() || '').trim();
 
         if (!firstName.trim() || !lastName.trim() || !birthdayString) {
           continue;
@@ -87,7 +98,7 @@ export class CsvImportService {
         birthday.Todo = TODO.NEEDPRESENT;
 
         await this.birthdayRepository.save(birthday);
-        imported++;
+        importCount++; // Lokale Variable erhöhen
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
@@ -96,7 +107,7 @@ export class CsvImportService {
         );
       }
     }
-    return { imported, errors };
+    return { imported: importCount, errors }; // Lokale Variable zurückgeben
   }
 
   async generateSampleData(): Promise<Birthday[]> {
